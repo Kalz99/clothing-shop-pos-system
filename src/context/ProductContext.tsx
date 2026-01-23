@@ -4,6 +4,7 @@ import api from '../lib/axios';
 
 interface ProductContextType {
     products: Product[];
+    fetchProducts: () => Promise<void>;
     addProduct: (product: Omit<Product, 'id'>) => void;
     updateProduct: (id: string, updates: Partial<Product>) => void;
     deleteProduct: (id: string) => void;
@@ -56,7 +57,7 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
     };
 
     return (
-        <ProductContext.Provider value={{ products, addProduct, updateProduct, deleteProduct }}>
+        <ProductContext.Provider value={{ products, fetchProducts, addProduct, updateProduct, deleteProduct }}>
             {children}
         </ProductContext.Provider>
     );

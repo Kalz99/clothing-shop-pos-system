@@ -1,11 +1,13 @@
 import { useState, useRef } from 'react';
 import { useInvoices, type Invoice } from '../context/InvoiceContext';
-import { Eye, Printer, Search, FileText } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { Printer, Search, FileText, Trash2 } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 import { Receipt } from '../components/Receipt';
 
 const Invoices = () => {
-    const { invoices } = useInvoices();
+    const { invoices, cancelInvoice } = useInvoices();
+    const { user } = useAuth();
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
     const receiptRef = useRef<HTMLDivElement>(null);
@@ -33,14 +35,19 @@ const Invoices = () => {
         }, 100);
     };
 
-    const handleView = (invoice: Invoice) => {
-        // For now, view is just printing. 
-        // Ideally "View" could open a modal. Let's make it open a modal with the receipt.
-        // But the requirement says "invoice will open as a pdf". 
-        // Using "Print" dialog (Save as PDF) is the standard web way to do this.
-        // So both buttons might do the same thing effectively, but we can treat "View" as "Print Preview".
-        triggerPrint(invoice);
+    const handleCancel = async (invoice: Invoice) => {
+        if (!window.confirm(`Are you sure you want to CANCEL and DELETE invoice ${invoice.invoiceNo}? \n\nThis will restore the following items to stock: \n${invoice.items.map(i => `- ${i.name} (Qty: ${i.quantity})`).join('\n')}`)) {
+            return;
+        }
+
+        const result = await cancelInvoice(invoice.id);
+        if (result.success) {
+            alert('Invoice cancelled and stock re-balanced successfully.');
+        } else {
+            alert('Failed to cancel invoice: ' + result.message);
+        }
     };
+
 
     return (
         <div className="h-full flex flex-col p-6 overflow-hidden">
@@ -61,8 +68,8 @@ const Invoices = () => {
                 </div>
             </div>
 
-            <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
-                <div className="overflow-x-auto">
+            <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col min-h-0 overflow-hidden">
+                <div className="flex-1 overflow-auto">
                     <table className="w-full text-left">
                         <thead className="bg-gray-50 border-b border-gray-100">
                             <tr>
@@ -86,10 +93,14 @@ const Invoices = () => {
                                         {invoice.invoiceNo}
                                     </td>
                                     <td className="px-6 py-4 text-gray-600">
-                                        {invoice.customerName}
-                                        <span className="text-xs text-gray-400 block">
-                                            {invoice.customerMobile}
+                                        <span className="font-medium text-gray-800">
+                                            {(!invoice.customerName || invoice.customerName === 'Walk-in') ? 'Walk-in Customer' : invoice.customerName}
                                         </span>
+                                        {invoice.customerMobile && (
+                                            <span className="text-xs text-gray-400 block mt-0.5">
+                                                {invoice.customerMobile}
+                                            </span>
+                                        )}
                                     </td>
                                     <td className="px-6 py-4 font-bold text-gray-800 text-right">
                                         Rs. {invoice.total.toFixed(2)}
@@ -97,19 +108,21 @@ const Invoices = () => {
                                     <td className="px-6 py-4">
                                         <div className="flex justify-center gap-2">
                                             <button
-                                                onClick={() => handleView(invoice)}
-                                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                title="View/Print PDF"
-                                            >
-                                                <Eye className="w-5 h-5" />
-                                            </button>
-                                            <button
                                                 onClick={() => triggerPrint(invoice)}
                                                 className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                                                 title="Reprint"
                                             >
                                                 <Printer className="w-5 h-5" />
                                             </button>
+                                            {user?.role === 'manager' && (
+                                                <button
+                                                    onClick={() => handleCancel(invoice)}
+                                                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                    title="Cancel & Delete Invoice"
+                                                >
+                                                    <Trash2 className="w-5 h-5" />
+                                                </button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>
@@ -139,7 +152,10 @@ const Invoices = () => {
                         customerName={selectedInvoice.customerName}
                         customerMobile={selectedInvoice.customerMobile}
                         cashierName={selectedInvoice.cashierName}
-                        date={new Date(selectedInvoice.date).toLocaleDateString()}
+                        date={new Date(selectedInvoice.date).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                        cashReceived={selectedInvoice.cashReceived}
+                        balance={selectedInvoice.balance}
+                        invoiceNo={selectedInvoice.invoiceNo}
                     />
                 )}
             </div>

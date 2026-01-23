@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-    baseURL: 'http://localhost:5000/api',
+    baseURL: 'https://lazaro.luxn.lk/api',
     headers: {
         'Content-Type': 'application/json',
     },

@@ -12,7 +12,9 @@ router.post('/', async (req, res) => {
         discount,
         total,
         paymentMethod,
-        cashierName
+        cashierName,
+        cashReceived,
+        balance
     } = req.body;
 
     const connection = await db.getConnection();
@@ -36,17 +38,38 @@ router.post('/', async (req, res) => {
             }
         }
 
-        // 1. Handle Customer (Find or Create)
+        // 1. Handle Customer (Find or Link or Create)
         let customerId = null;
-        if (customerMobile) {
-            const [custs] = await connection.query('SELECT id FROM customers WHERE phone = ?', [customerMobile]);
-            if (custs.length > 0) {
-                customerId = custs[0].id;
-                // Optional: Update name if changed?
-            } else {
+        if (customerName || customerMobile) {
+            // First try finding by phone (most unique)
+            if (customerMobile) {
+                const [custs] = await connection.query('SELECT id, name FROM customers WHERE phone = ?', [customerMobile]);
+                if (custs.length > 0) {
+                    customerId = custs[0].id;
+                    // Update name if current input is different and not empty
+                    if (customerName && custs[0].name !== customerName) {
+                        await connection.query('UPDATE customers SET name = ? WHERE id = ?', [customerName, customerId]);
+                    }
+                }
+            }
+
+            // If not found by phone, try finding by name (if name provided)
+            if (!customerId && customerName) {
+                const [custs] = await connection.query('SELECT id FROM customers WHERE name = ?', [customerName]);
+                if (custs.length > 0) {
+                    customerId = custs[0].id;
+                    // If we found by name and we have a mobile, update the mobile for this customer
+                    if (customerMobile) {
+                        await connection.query('UPDATE customers SET phone = ? WHERE id = ?', [customerMobile, customerId]);
+                    }
+                }
+            }
+
+            // Still not found? Create a new one
+            if (!customerId) {
                 const [newCust] = await connection.query(
                     'INSERT INTO customers (name, phone) VALUES (?, ?)',
-                    [customerName, customerMobile]
+                    [customerName || null, customerMobile || null]
                 );
                 customerId = newCust.insertId;
             }
@@ -62,9 +85,9 @@ router.post('/', async (req, res) => {
         // 3. Insert Sale
         const [saleResult] = await connection.query(
             `INSERT INTO sales 
-            (invoice_no, user_id, customer_id, subtotal, discount, total, payment_method) 
-            VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [nextInvoiceNo, userId, customerId, subtotal, discount, total, paymentMethod]
+            (invoice_no, user_id, customer_id, subtotal, discount, total, payment_method, cash_received, balance) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [nextInvoiceNo, userId, customerId, subtotal, discount, total, paymentMethod, cashReceived || 0, balance || 0]
         );
         const saleId = saleResult.insertId;
 
@@ -79,6 +102,7 @@ router.post('/', async (req, res) => {
             );
 
             // Update Stock
+            console.log(`Reducing stock for product ${item.id} by ${item.quantity}`);
             await connection.query(
                 `UPDATE products SET stock_qty = stock_qty - ? WHERE id = ?`,
                 [item.quantity, parseInt(item.id)]
@@ -90,8 +114,8 @@ router.post('/', async (req, res) => {
 
     } catch (err) {
         await connection.rollback();
-        console.error(err);
-        res.status(500).json({ message: 'Transaction failed' });
+        console.error('Error in POST /api/sales:', err);
+        res.status(500).json({ message: 'Transaction failed', error: err.message });
     } finally {
         connection.release();
     }
@@ -121,7 +145,7 @@ router.get('/', async (req, res) => {
 
         const salesWithItems = sales.map(s => {
             const saleItems = items.filter(i => i.sale_id === s.id).map(i => ({
-                id: i.product_id.toString(), // casting for frontend compatibility
+                id: i.product_id ? i.product_id.toString() : `del-${i.id}`, // fallback to sale_item id if product deleted
                 name: i.product_name,
                 price: Number(i.unit_price),
                 quantity: i.qty,
@@ -141,14 +165,68 @@ router.get('/', async (req, res) => {
                 discount: Number(s.discount),
                 total: Number(s.total),
                 paymentMethod: s.payment_method,
-                cashierName: s.cashier_name || 'Unknown'
+                cashierName: s.cashier_name || 'Unknown',
+                cashReceived: Number(s.cash_received || 0),
+                balance: Number(s.balance || 0)
             };
         });
 
         res.json(salesWithItems);
     } catch (err) {
-        console.error(err);
+        console.error('Error in GET /api/sales:', err);
         res.status(500).json({ message: err.message });
+    }
+});
+
+// Cancel/Delete Invoice with Stock Rebalancing
+router.delete('/:id', async (req, res) => {
+    const saleId = req.params.id;
+    const connection = await db.getConnection();
+
+    try {
+        await connection.beginTransaction();
+
+        // 1. Get all items in this sale to know what to restore to stock
+        const [items] = await connection.query(
+            'SELECT product_id, qty FROM sale_items WHERE sale_id = ?',
+            [saleId]
+        );
+
+        let restoredCount = 0;
+
+        // 2. Restore stock levels
+        for (const item of items) {
+            if (item.product_id) {
+                const qty = Number(item.qty);
+                const productId = Number(item.product_id);
+
+                console.log(`Restoring stock for product ${productId} by ${qty}`);
+                await connection.query(
+                    'UPDATE products SET stock_qty = stock_qty + ? WHERE id = ?',
+                    [qty, productId]
+                );
+                restoredCount++;
+            }
+        }
+
+        // 3. Delete sale items
+        await connection.query('DELETE FROM sale_items WHERE sale_id = ?', [saleId]);
+
+        // 4. Delete the sale itself
+        await connection.query('DELETE FROM sales WHERE id = ?', [saleId]);
+
+        await connection.commit();
+        res.json({
+            message: 'Invoice cancelled and stock restored successfully',
+            itemsRestored: restoredCount
+        });
+
+    } catch (err) {
+        if (connection) await connection.rollback();
+        console.error('Error in DELETE /api/sales/:id:', err);
+        res.status(500).json({ message: 'Failed to cancel invoice', error: err.message });
+    } finally {
+        if (connection) connection.release();
     }
 });
 
