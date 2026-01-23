@@ -50,6 +50,8 @@ CREATE TABLE IF NOT EXISTS sales (
     discount DECIMAL(10, 2) DEFAULT 0.00,
     total DECIMAL(10, 2) NOT NULL,
     payment_method ENUM('cash', 'card') DEFAULT 'cash',
+    cash_received DECIMAL(10, 2) DEFAULT 0.00,
+    balance DECIMAL(10, 2) DEFAULT 0.00,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
     FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL
@@ -69,5 +71,6 @@ CREATE TABLE IF NOT EXISTS sale_items (
 );
 
 -- Initial Data Seeding (Optional)
-INSERT INTO users (username, password, role) VALUES ('admin', 'admin123', 'manager');
+INSERT INTO users (username, password, role) VALUES ('admin', 'admin@2026', 'manager');
+INSERT INTO users (username, password, role) VALUES ('cashier', 'cashier@2026', 'cashier');
 

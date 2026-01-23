@@ -7,6 +7,7 @@ import { Search, ShoppingCart, Plus, Minus, Printer, Shirt } from 'lucide-react'
 import { Receipt } from '../components/Receipt';
 import { useReactToPrint } from 'react-to-print';
 import type { Invoice } from '../context/InvoiceContext';
+import api from '../lib/axios';
 
 const Billing = () => {
     const { products, fetchProducts } = useProducts();
@@ -18,24 +19,88 @@ const Billing = () => {
     const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card'>('cash');
     const [customerName, setCustomerName] = useState('');
     const [customerMobile, setCustomerMobile] = useState('');
+    const [customerSuggestions, setCustomerSuggestions] = useState<any[]>([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const [cashReceived, setCashReceived] = useState<number>(0);
+    const searchInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        const handleGlobalKeyDown = (e: KeyboardEvent) => {
+            // Auto-focus search box if user starts typing while not in an input
+            const isInput = (document.activeElement?.tagName === 'INPUT' ||
+                document.activeElement?.tagName === 'TEXTAREA');
+
+            if (searchInputRef.current && !isInput && !e.ctrlKey && !e.altKey && !e.metaKey && e.key.length === 1) {
+                searchInputRef.current.focus();
+            }
+        };
+
+        window.addEventListener('keydown', handleGlobalKeyDown);
+        return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+    }, []);
+
+    useEffect(() => {
+        const searchCustomer = async () => {
+            const query = customerName || customerMobile;
+            if (query.length < 2) {
+                setCustomerSuggestions([]);
+                setShowSuggestions(false);
+                return;
+            }
+
+            try {
+                const { data } = await api.get(`/customers/search?q=${query}`);
+                setCustomerSuggestions(data);
+                setShowSuggestions(data.length > 0);
+            } catch (err) {
+                console.error('Error searching customers:', err);
+            }
+        };
+
+        const timer = setTimeout(searchCustomer, 300);
+        return () => clearTimeout(timer);
+    }, [customerName, customerMobile]);
+
+    const selectCustomer = (customer: any) => {
+        setCustomerName(customer.name || '');
+        setCustomerMobile(customer.phone || '');
+        setCustomerSuggestions([]);
+        setShowSuggestions(false);
+    };
 
     const { addInvoice } = useInvoices();
 
     // Calculate totals
     const discountAmount = (total * discountPercentage) / 100;
     const finalTotal = Math.max(0, total - discountAmount);
+    const balance = cashReceived > 0 ? cashReceived - finalTotal : 0;
 
     const receiptRef = useRef<HTMLDivElement>(null);
     const [printingInvoice, setPrintingInvoice] = useState<Invoice | null>(null);
 
     const handlePrint = useReactToPrint({
         contentRef: receiptRef,
+        pageStyle: `
+            @page {
+                size: 80mm auto;
+                margin: 0;
+            }
+            @media print {
+                body {
+                    margin: 0;
+                    padding: 0;
+                }
+            }
+        `,
         onAfterPrint: () => {
             clearCart();
             setCustomerName('');
             setCustomerMobile('');
             setDiscountPercentage(0);
+            setCashReceived(0);
             setPrintingInvoice(null);
+            // Auto-focus search box for next customer
+            setTimeout(() => searchInputRef.current?.focus(), 100);
         },
     });
 
@@ -44,14 +109,16 @@ const Billing = () => {
 
         const newInvoice = await addInvoice({
             invoiceNo: '', // Backend generates this
-            customerName: customerName || 'Walk-in Customer',
-            customerMobile: customerMobile || 'N/A',
+            customerName: customerName,
+            customerMobile: customerMobile,
             items: [...cart],
             subtotal: total,
             discount: discountAmount,
             total: finalTotal,
             paymentMethod,
             cashierName: user?.name || 'Cashier',
+            cashReceived: paymentMethod === 'cash' ? cashReceived : 0,
+            balance: paymentMethod === 'cash' ? balance : 0
         });
 
         if (newInvoice) {
@@ -73,13 +140,7 @@ const Billing = () => {
         return matchesSearch && matchesCategory;
     });
 
-    useEffect(() => {
-        const handleKeyPress = () => {
-            // Scanner logic placeholder
-        };
-        window.addEventListener('keypress', handleKeyPress);
-        return () => window.removeEventListener('keypress', handleKeyPress);
-    }, []);
+
 
     return (
         <div className="h-full flex flex-col overflow-hidden">
@@ -90,7 +151,25 @@ const Billing = () => {
                 <div className="flex-1 flex flex-col p-6 min-w-0">
                     {/* Search & Filter */}
                     <div className="bg-white p-4 rounded-xl shadow-sm mb-6 space-y-4">
-                        <div className="relative">
+                        <form
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                const product = products.find(p => p.barcode === searchTerm);
+                                if (product) {
+                                    if (product.stock > 0) {
+                                        addToCart(product);
+                                        setSearchTerm('');
+                                    } else {
+                                        alert('Item is out of stock');
+                                        setSearchTerm('');
+                                    }
+                                } else if (searchTerm.trim()) {
+                                    alert('Item is missing on the system');
+                                    setSearchTerm('');
+                                }
+                            }}
+                            className="relative"
+                        >
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
                             <input
                                 type="text"
@@ -100,7 +179,7 @@ const Billing = () => {
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="w-full pl-10 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:outline-none text-lg"
                             />
-                        </div>
+                        </form>
                         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
                             {categories.map(cat => (
                                 <button
@@ -168,12 +247,15 @@ const Billing = () => {
                                 {cart.reduce((acc, item) => acc + item.quantity, 0)}
                             </span>
                         </h2>
-                        <div className="flex gap-3">
+                        <div className="flex gap-3 relative">
                             <input
                                 type="text"
                                 placeholder="Customer Name"
                                 value={customerName}
-                                onChange={(e) => setCustomerName(e.target.value)}
+                                onChange={(e) => {
+                                    setCustomerName(e.target.value);
+                                    if (e.target.value === '') setCustomerMobile(''); // Logic to clear both if name cleared?
+                                }}
                                 className="w-0 flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                             />
                             <input
@@ -183,6 +265,21 @@ const Billing = () => {
                                 onChange={(e) => setCustomerMobile(e.target.value)}
                                 className="w-0 flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                             />
+
+                            {showSuggestions && (
+                                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
+                                    {customerSuggestions.map((cust) => (
+                                        <button
+                                            key={cust.id}
+                                            onClick={() => selectCustomer(cust)}
+                                            className="w-full px-4 py-2 text-left hover:bg-blue-50 flex flex-col transition-colors border-b border-gray-50 last:border-b-0"
+                                        >
+                                            <span className="font-semibold text-gray-800">{cust.name || 'No Name'}</span>
+                                            <span className="text-xs text-gray-500">{cust.phone || 'No Phone'}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -256,6 +353,7 @@ const Billing = () => {
                                 <span>Total</span>
                                 <span>Rs. {finalTotal.toFixed(2)}</span>
                             </div>
+
                         </div>
 
                         <div className="flex gap-3 mb-4">
@@ -270,7 +368,10 @@ const Billing = () => {
                                 Cash
                             </button>
                             <button
-                                onClick={() => setPaymentMethod('card')}
+                                onClick={() => {
+                                    setPaymentMethod('card');
+                                    setCashReceived(0);
+                                }}
                                 className={`flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 border transition-all ${paymentMethod === 'card'
                                     ? 'bg-purple-600 text-white border-purple-600 shadow-md'
                                     : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
@@ -280,6 +381,34 @@ const Billing = () => {
                                 Card
                             </button>
                         </div>
+
+                        {paymentMethod === 'cash' && (
+                            <div className="space-y-2 mb-4 pt-4 border-t border-gray-100">
+                                <div className="flex justify-between items-center text-gray-600">
+                                    <span>Cash Received</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-gray-400">Rs.</span>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={cashReceived || ''}
+                                            onChange={(e) => {
+                                                const val = parseFloat(e.target.value) || 0;
+                                                setCashReceived(val);
+                                            }}
+                                            className="w-24 px-2 py-1 text-right border border-gray-200 rounded focus:ring-2 focus:ring-blue-500/20 focus:outline-none"
+                                            placeholder="0.00"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-gray-600">Balance</span>
+                                    <span className={`font-bold ${balance < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                        Rs. {balance.toFixed(2)}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
 
                         <button
                             onClick={() => handleCheckout()}
@@ -305,8 +434,10 @@ const Billing = () => {
                         customerName={printingInvoice.customerName}
                         customerMobile={printingInvoice.customerMobile}
                         cashierName={printingInvoice.cashierName}
-                        date={new Date(printingInvoice.date).toLocaleDateString()}
+                        date={new Date(printingInvoice.date).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
                         invoiceNo={printingInvoice.invoiceNo}
+                        cashReceived={printingInvoice.cashReceived}
+                        balance={printingInvoice.balance}
                     />
                 )}
             </div>

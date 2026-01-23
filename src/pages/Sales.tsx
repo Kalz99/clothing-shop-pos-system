@@ -66,7 +66,7 @@ const Sales = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 {[
                     { label: 'Today Sales', value: `Rs. ${todaySales.toLocaleString()}`, icon: TrendingUp, color: 'bg-green-500' },
-                    { label: 'Total Revenue', value: `Rs. ${totalRevenue.toLocaleString()}`, icon: DollarSign, color: 'bg-blue-600' },
+                    { label: 'Total Sales', value: `Rs. ${totalRevenue.toLocaleString()}`, icon: DollarSign, color: 'bg-blue-600' },
                     { label: 'Total Orders', value: totalOrders.toString(), icon: ShoppingBag, color: 'bg-purple-500' },
                     { label: 'Filtered Sales', value: `Rs. ${filteredTotal.toLocaleString()}`, icon: BarChart3, color: 'bg-orange-500' },
                 ].map((stat, index) => (
@@ -110,8 +110,12 @@ const Sales = () => {
                                         {new Date(inv.date).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
                                     </td>
                                     <td className="px-6 py-4">
-                                        <div className="text-sm font-medium text-gray-900">{inv.customerName}</div>
-                                        <div className="text-xs text-gray-400">{inv.customerMobile}</div>
+                                        <div className="text-sm font-medium text-gray-900">
+                                            {(!inv.customerName || inv.customerName === 'Walk-in') ? 'Walk-in Customer' : inv.customerName}
+                                        </div>
+                                        {inv.customerMobile && (
+                                            <div className="text-xs text-gray-400">{inv.customerMobile}</div>
+                                        )}
                                     </td>
                                     <td className="px-6 py-4 text-sm text-gray-600 text-center">
                                         {inv.items.reduce((acc, item) => acc + item.quantity, 0)}

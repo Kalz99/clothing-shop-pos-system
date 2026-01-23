@@ -5,12 +5,17 @@ import api from '../lib/axios';
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-    const [user, setUser] = useState<User | null>(null);
+    const [user, setUser] = useState<User | null>(() => {
+        const savedUser = localStorage.getItem('pos_user');
+        return savedUser ? JSON.parse(savedUser) : null;
+    });
 
     const login = async (username: string, password: string, role: Role): Promise<boolean> => {
         try {
             const res = await api.post('/auth/login', { username, password, role });
-            setUser(res.data.user);
+            const userData = res.data.user;
+            setUser(userData);
+            localStorage.setItem('pos_user', JSON.stringify(userData));
             return true;
         } catch (error) {
             console.error('Login failed:', error);
@@ -21,6 +26,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const logout = () => {
         setUser(null);
+        localStorage.removeItem('pos_user');
     };
 
     return (

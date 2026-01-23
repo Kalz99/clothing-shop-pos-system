@@ -11,6 +11,9 @@ interface ProductFormProps {
 
 const ProductForm: React.FC<ProductFormProps> = ({ initialData, onSubmit, onCancel }) => {
     const { categories } = useCategories();
+    const barcodeRef = React.useRef<HTMLInputElement>(null);
+    const nameRef = React.useRef<HTMLInputElement>(null);
+
     const [formData, setFormData] = useState({
         name: initialData?.name || '',
         barcode: initialData?.barcode || '',
@@ -23,12 +26,27 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData, onSubmit, onCanc
         color: initialData?.color || '',
     });
 
+    React.useEffect(() => {
+        // Delay focus slightly to ensure modal is rendered
+        const timer = setTimeout(() => {
+            barcodeRef.current?.focus();
+        }, 100);
+        return () => clearTimeout(timer);
+    }, []);
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         onSubmit({
             ...formData,
             createdAt: initialData?.createdAt || new Date().toISOString()
         });
+    };
+
+    const handleBarcodeKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && formData.barcode.trim()) {
+            e.preventDefault(); // Prevent form submission
+            nameRef.current?.focus();
+        }
     };
 
     return (
@@ -50,11 +68,12 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData, onSubmit, onCanc
                         <label className="block text-sm font-medium text-gray-700 mb-1">Barcode *</label>
                         <div className="relative">
                             <input
+                                ref={barcodeRef}
                                 type="text"
                                 required
-                                autoFocus
                                 value={formData.barcode}
                                 onChange={e => setFormData({ ...formData, barcode: e.target.value })}
+                                onKeyDown={handleBarcodeKeyDown}
                                 className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none pr-10 font-mono"
                                 placeholder="Scan or type barcode"
                             />
@@ -65,6 +84,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData, onSubmit, onCanc
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Product Name *</label>
                         <input
+                            ref={nameRef}
                             type="text"
                             required
                             value={formData.name}

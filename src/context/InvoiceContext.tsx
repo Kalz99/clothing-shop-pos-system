@@ -14,11 +14,14 @@ export interface Invoice {
     total: number;
     paymentMethod: 'cash' | 'card';
     cashierName: string;
+    cashReceived?: number;
+    balance?: number;
 }
 
 interface InvoiceContextType {
     invoices: Invoice[];
     addInvoice: (invoice: Omit<Invoice, 'id' | 'date'>) => Promise<Invoice | null>;
+    cancelInvoice: (id: string) => Promise<{ success: boolean; message: string }>;
     getInvoice: (id: string) => Invoice | undefined;
 }
 
@@ -66,12 +69,24 @@ export const InvoiceProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
+    const cancelInvoice = async (id: string) => {
+        try {
+            await api.delete(`/sales/${id}`);
+            setInvoices(prev => prev.filter(inv => inv.id !== id));
+            return { success: true, message: 'Success' };
+        } catch (err: any) {
+            console.error('Error cancelling invoice:', err);
+            const errMsg = err.response?.data?.message || err.message || 'Unknown error';
+            return { success: false, message: errMsg };
+        }
+    };
+
     const getInvoice = (id: string) => {
         return invoices.find(inv => inv.id === id);
     };
 
     return (
-        <InvoiceContext.Provider value={{ invoices, addInvoice, getInvoice }}>
+        <InvoiceContext.Provider value={{ invoices, addInvoice, cancelInvoice, getInvoice }}>
             {children}
         </InvoiceContext.Provider>
     );
