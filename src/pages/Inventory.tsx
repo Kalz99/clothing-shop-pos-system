@@ -1,32 +1,62 @@
 import { useState } from 'react';
+import toast from 'react-hot-toast';
 import { useProducts } from '../context/ProductContext';
 import type { Product } from '../types';
 import ProductList from '../components/ProductList';
 import ProductForm from '../components/ProductForm';
 import { Plus, Search, Filter } from 'lucide-react';
+import ConfirmModal from '../components/ConfirmModal';
 
 const ManagerDashboard = () => {
     const { products, addProduct, updateProduct, deleteProduct } = useProducts();
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
+    const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+    const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
 
-    const handleAdd = (data: Omit<Product, 'id'>) => {
-        addProduct(data);
-        setIsFormOpen(false);
+    const handleAdd = async (data: Omit<Product, 'id'>) => {
+        try {
+            await addProduct(data);
+            toast.success(`Product "${data.name}" added successfully`);
+            setIsFormOpen(false);
+        } catch (err: any) {
+            const message = err.response?.data?.message || 'Failed to add product';
+            toast.error(message);
+        }
     };
 
-    const handleUpdate = (data: Omit<Product, 'id'>) => {
+    const handleUpdate = async (data: Omit<Product, 'id'>) => {
         if (editingProduct) {
-            updateProduct(editingProduct.id, data);
-            setEditingProduct(undefined);
-            setIsFormOpen(false);
+            try {
+                await updateProduct(editingProduct.id, data);
+                toast.success(`Product "${data.name}" updated successfully`);
+                setEditingProduct(undefined);
+                setIsFormOpen(false);
+            } catch (err: any) {
+                const message = err.response?.data?.message || 'Failed to update product';
+                toast.error(message);
+            }
         }
     };
 
     const handleEditClick = (product: Product) => {
         setEditingProduct(product);
         setIsFormOpen(true);
+    };
+
+    const handleDeleteRequest = (product: Product) => {
+        setProductToDelete(product);
+        setIsConfirmOpen(true);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (productToDelete) {
+            await deleteProduct(productToDelete.id);
+            toast.success(`Product "${productToDelete.name}" removed`);
+            setIsConfirmOpen(false);
+            setProductToDelete(null);
+        }
     };
 
     const filteredProducts = products.filter(p =>
@@ -73,7 +103,7 @@ const ManagerDashboard = () => {
             <ProductList
                 products={filteredProducts}
                 onEdit={handleEditClick}
-                onDelete={deleteProduct}
+                onDelete={handleDeleteRequest}
             />
 
             {isFormOpen && (
@@ -86,6 +116,17 @@ const ManagerDashboard = () => {
                     }}
                 />
             )}
+
+            <ConfirmModal
+                isOpen={isConfirmOpen}
+                title="Delete Product"
+                message={`Are you sure you want to delete "${productToDelete?.name}"? \n\nThis will remove it from the inventory while keeping historical records.`}
+                confirmText="Delete Product"
+                cancelText="Keep Product"
+                onConfirm={handleConfirmDelete}
+                onCancel={() => setIsConfirmOpen(false)}
+                type="danger"
+            />
         </div>
     );
 };

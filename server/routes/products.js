@@ -9,6 +9,7 @@ router.get('/', async (req, res) => {
             SELECT p.*, c.name as category_name 
             FROM products p 
             LEFT JOIN categories c ON p.category_id = c.id
+            WHERE p.status = 1
             ORDER BY p.created_at DESC
         `);
 
@@ -39,6 +40,12 @@ router.post('/', async (req, res) => {
     const { barcode, name, category, size, brand, color, costPrice, price, stock } = req.body;
 
     try {
+        // Check if barcode already exists
+        const [existing] = await db.query('SELECT id FROM products WHERE barcode = ? AND status = 1', [barcode]);
+        if (existing.length > 0) {
+            return res.status(400).json({ message: `Product with barcode "${barcode}" already exists.` });
+        }
+
         // First find category_id
         // If category doesn't exist, maybe create it or error? 
         // For simple POS, let's assume category exists or selected from list.
@@ -65,7 +72,7 @@ router.post('/', async (req, res) => {
         res.status(201).json({ id: result.insertId.toString(), ...req.body });
     } catch (err) {
         console.error(err);
-        res.status(500).json({ message: 'Error creating product' });
+        res.status(500).json({ message: err.message || 'Error creating product' });
     }
 });
 
@@ -75,6 +82,12 @@ router.put('/:id', async (req, res) => {
     const pid = req.params.id;
 
     try {
+        // Check if barcode already exists on DIFFERENT product
+        const [existing] = await db.query('SELECT id FROM products WHERE barcode = ? AND id != ? AND status = 1', [barcode, pid]);
+        if (existing.length > 0) {
+            return res.status(400).json({ message: `Barcode "${barcode}" is already taken by another product.` });
+        }
+
         let categoryId = null;
         if (category) {
             const [cats] = await db.query('SELECT id FROM categories WHERE name = ?', [category]);
@@ -97,14 +110,14 @@ router.put('/:id', async (req, res) => {
         res.json({ message: 'Updated successfully' });
     } catch (err) {
         console.error(err);
-        res.status(500).json({ message: 'Error updating product' });
+        res.status(500).json({ message: err.message || 'Error updating product' });
     }
 });
 
 // Delete product
 router.delete('/:id', async (req, res) => {
     try {
-        await db.query('DELETE FROM products WHERE id = ?', [req.params.id]);
+        await db.query('UPDATE products SET status = 0 WHERE id = ?', [req.params.id]);
         res.json({ message: 'Deleted successfully' });
     } catch (err) {
         console.error(err);

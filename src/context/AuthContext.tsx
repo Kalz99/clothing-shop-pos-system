@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
+import toast from 'react-hot-toast';
 import type { User, Role, AuthState } from '../types';
 import api from '../lib/axios';
 
@@ -16,10 +17,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             const userData = res.data.user;
             setUser(userData);
             localStorage.setItem('pos_user', JSON.stringify(userData));
+            toast.success(`Welcome back, ${userData.name}!`);
             return true;
         } catch (error) {
             console.error('Login failed:', error);
-            alert('Login failed. Please check your credentials or if the server is running.');
+            toast.error('Login failed. Please check your credentials.');
             return false;
         }
     };

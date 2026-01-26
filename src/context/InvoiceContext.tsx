@@ -16,6 +16,7 @@ export interface Invoice {
     cashierName: string;
     cashReceived?: number;
     balance?: number;
+    status: boolean;
 }
 
 interface InvoiceContextType {
@@ -59,7 +60,8 @@ export const InvoiceProvider = ({ children }: { children: ReactNode }) => {
                 ...invoiceData,
                 id: res.data.saleId.toString(),
                 invoiceNo: res.data.invoiceNo,
-                date: new Date().toISOString()
+                date: new Date().toISOString(),
+                status: true
             };
             setInvoices(prev => [newInvoice, ...prev]);
             return newInvoice;
@@ -72,6 +74,7 @@ export const InvoiceProvider = ({ children }: { children: ReactNode }) => {
     const cancelInvoice = async (id: string) => {
         try {
             await api.delete(`/sales/${id}`);
+            // Remove from local list so it disappears immediately
             setInvoices(prev => prev.filter(inv => inv.id !== id));
             return { success: true, message: 'Success' };
         } catch (err: any) {

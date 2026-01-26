@@ -7,14 +7,16 @@ const Sales = () => {
     const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
     const [timeframe, setTimeframe] = useState<'daily' | 'monthly' | 'yearly'>('daily');
 
-    // Calculate Metrics
+    // Calculate Metrics (Only for ACTIVE invoices)
+    const activeInvoices = invoices.filter(inv => inv.status);
+
     const today = new Date().toISOString().split('T')[0];
-    const todaySales = invoices
+    const todaySales = activeInvoices
         .filter(inv => inv.date.startsWith(today))
         .reduce((sum, inv) => sum + inv.total, 0);
 
-    const totalRevenue = invoices.reduce((sum, inv) => sum + inv.total, 0);
-    const totalOrders = invoices.length;
+    const totalRevenue = activeInvoices.reduce((sum, inv) => sum + inv.total, 0);
+    const totalOrders = activeInvoices.length;
 
     const filteredInvoices = invoices.filter(inv => {
         if (!filterDate) return true;
@@ -24,7 +26,9 @@ const Sales = () => {
         return true;
     });
 
-    const filteredTotal = filteredInvoices.reduce((sum, inv) => sum + inv.total, 0);
+    const filteredTotal = filteredInvoices
+        .filter(inv => inv.status)
+        .reduce((sum, inv) => sum + inv.total, 0);
 
     return (
         <div className="p-8 max-w-7xl mx-auto w-full h-full overflow-y-auto">

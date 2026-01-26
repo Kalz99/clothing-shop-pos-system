@@ -44,6 +44,7 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
             setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
         } catch (err) {
             console.error('Error updating product:', err);
+            throw err;
         }
     };
 

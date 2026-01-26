@@ -111,10 +111,10 @@ export const Receipt = React.forwardRef<HTMLDivElement, ReceiptProps>(({ cart, t
 
             {/* Footer Section */}
             <div className="text-center text-xs space-y-3 pt-1">
-                <p className="leading-tight px-4 font-medium text-black">Exchanges accepted within 7 days with receipt. Items must be unused with tags attached.</p>
+                <p className="leading-tight px-4 font-medium text-black">Exchanges accepted within 4 days with receipt. Items must be unused with tags attached.</p>
                 <div className="space-y-1">
                     <p className="font-bold uppercase text-[10px] text-black">Thank you for shopping with us!</p>
-                    <p className="text-[10px] font-bold uppercase text-black mt-4">Software By LUXN IT - 074 169 1008</p>
+                    <p className="text-[10px] font-bold uppercase text-black mt-4">POS System By LUXN IT - 074 169 1008</p>
                 </div>
             </div>
         </div>

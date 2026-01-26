@@ -1,15 +1,21 @@
 import { useState, useRef } from 'react';
+import toast from 'react-hot-toast';
 import { useInvoices, type Invoice } from '../context/InvoiceContext';
 import { useAuth } from '../context/AuthContext';
+import { useProducts } from '../context/ProductContext';
 import { Printer, Search, FileText, Trash2 } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 import { Receipt } from '../components/Receipt';
+import ConfirmModal from '../components/ConfirmModal';
 
 const Invoices = () => {
     const { invoices, cancelInvoice } = useInvoices();
     const { user } = useAuth();
+    const { fetchProducts } = useProducts();
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+    const [invoiceToCancel, setInvoiceToCancel] = useState<Invoice | null>(null);
+    const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const receiptRef = useRef<HTMLDivElement>(null);
 
     // Sort invoices by date (newest first)
@@ -35,16 +41,24 @@ const Invoices = () => {
         }, 100);
     };
 
-    const handleCancel = async (invoice: Invoice) => {
-        if (!window.confirm(`Are you sure you want to CANCEL and DELETE invoice ${invoice.invoiceNo}? \n\nThis will restore the following items to stock: \n${invoice.items.map(i => `- ${i.name} (Qty: ${i.quantity})`).join('\n')}`)) {
-            return;
-        }
+    const handleCancelRequest = (invoice: Invoice) => {
+        setInvoiceToCancel(invoice);
+        setIsConfirmOpen(true);
+    };
+
+    const handleConfirmCancel = async () => {
+        if (!invoiceToCancel) return;
+
+        const invoice = invoiceToCancel;
+        setIsConfirmOpen(false);
+        setInvoiceToCancel(null);
 
         const result = await cancelInvoice(invoice.id);
         if (result.success) {
-            alert('Invoice cancelled and stock re-balanced successfully.');
+            await fetchProducts(); // Refresh stock levels globally
+            toast.success('Invoice cancelled and stock re-balanced successfully.');
         } else {
-            alert('Failed to cancel invoice: ' + result.message);
+            toast.error('Failed to cancel invoice: ' + result.message);
         }
     };
 
@@ -116,7 +130,7 @@ const Invoices = () => {
                                             </button>
                                             {user?.role === 'manager' && (
                                                 <button
-                                                    onClick={() => handleCancel(invoice)}
+                                                    onClick={() => handleCancelRequest(invoice)}
                                                     className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                                     title="Cancel & Delete Invoice"
                                                 >
@@ -159,6 +173,17 @@ const Invoices = () => {
                     />
                 )}
             </div>
+
+            <ConfirmModal
+                isOpen={isConfirmOpen}
+                title="Cancel Invoice"
+                message={`Are you sure you want to CANCEL invoice ${invoiceToCancel?.invoiceNo}? \n\nThis will restore the following items to stock: \n${invoiceToCancel?.items.map(i => `• ${i.name} (Qty: ${i.quantity})`).join('\n')}`}
+                confirmText="Yes, Cancel Invoice"
+                cancelText="No, Keep It"
+                onConfirm={handleConfirmCancel}
+                onCancel={() => setIsConfirmOpen(false)}
+                type="danger"
+            />
         </div>
     );
 };

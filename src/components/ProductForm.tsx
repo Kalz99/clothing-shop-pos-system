@@ -26,6 +26,48 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData, onSubmit, onCanc
         color: initialData?.color || '',
     });
 
+    const scannerBuffer = React.useRef('');
+    const lastKeyTime = React.useRef(0);
+
+    React.useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const now = Date.now();
+            const timeDiff = now - lastKeyTime.current;
+            lastKeyTime.current = now;
+
+            if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+            if (e.key === 'Enter') {
+                if (scannerBuffer.current.length > 3) {
+                    const finalBarcode = scannerBuffer.current;
+                    setFormData(prev => ({ ...prev, barcode: finalBarcode }));
+                    scannerBuffer.current = '';
+                    e.preventDefault();
+                    e.stopPropagation();
+                    nameRef.current?.focus();
+                }
+                return;
+            }
+
+            if (e.key.length === 1) {
+                // Recognition: If it's a fast burst (scanner)
+                if (timeDiff < 50) {
+                    scannerBuffer.current += e.key;
+                    // If focusing a field that is NOT the barcode field, prevent the burst from polluting it
+                    if (document.activeElement?.tagName === 'INPUT' && document.activeElement !== barcodeRef.current) {
+                        e.preventDefault();
+                    }
+                } else {
+                    // Start of a potential new scan or human typing
+                    scannerBuffer.current = e.key;
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown, true);
+        return () => window.removeEventListener('keydown', handleKeyDown, true);
+    }, []);
+
     React.useEffect(() => {
         // Delay focus slightly to ensure modal is rendered
         const timer = setTimeout(() => {
@@ -43,9 +85,12 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData, onSubmit, onCanc
     };
 
     const handleBarcodeKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' && formData.barcode.trim()) {
-            e.preventDefault(); // Prevent form submission
-            nameRef.current?.focus();
+        if (e.key === 'Enter') {
+            // If it's manual entry, focus name
+            if (formData.barcode.trim()) {
+                e.preventDefault();
+                nameRef.current?.focus();
+            }
         }
     };
 
