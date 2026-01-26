@@ -85,9 +85,9 @@ router.post('/', async (req, res) => {
         // 3. Insert Sale
         const [saleResult] = await connection.query(
             `INSERT INTO sales 
-            (invoice_no, user_id, customer_id, subtotal, discount, total, payment_method, cash_received, balance) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [nextInvoiceNo, userId, customerId, subtotal, discount, total, paymentMethod, cashReceived || 0, balance || 0]
+            (invoice_no, user_id, customer_id, subtotal, discount, total, payment_method, cash_received, balance, status) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [nextInvoiceNo, userId, customerId, subtotal, discount, total, paymentMethod, cashReceived || 0, balance || 0, 1]
         );
         const saleId = saleResult.insertId;
 
@@ -129,6 +129,7 @@ router.get('/', async (req, res) => {
             FROM sales s 
             LEFT JOIN customers c ON s.customer_id = c.id
             LEFT JOIN users u ON s.user_id = u.id
+            WHERE s.status = 1
             ORDER BY s.created_at DESC
         `);
 
@@ -167,7 +168,8 @@ router.get('/', async (req, res) => {
                 paymentMethod: s.payment_method,
                 cashierName: s.cashier_name || 'Unknown',
                 cashReceived: Number(s.cash_received || 0),
-                balance: Number(s.balance || 0)
+                balance: Number(s.balance || 0),
+                status: s.status === 1
             };
         });
 
@@ -209,11 +211,8 @@ router.delete('/:id', async (req, res) => {
             }
         }
 
-        // 3. Delete sale items
-        await connection.query('DELETE FROM sale_items WHERE sale_id = ?', [saleId]);
-
-        // 4. Delete the sale itself
-        await connection.query('DELETE FROM sales WHERE id = ?', [saleId]);
+        // 3. Update the sale status to cancelled (0)
+        await connection.query('UPDATE sales SET status = 0 WHERE id = ?', [saleId]);
 
         await connection.commit();
         res.json({

@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS products (
     cost_price DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
     selling_price DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
     stock_qty INT NOT NULL DEFAULT 0,
+    status TINYINT(1) DEFAULT 1, -- 1 for active, 0 for deleted/inactive
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
 );
@@ -52,6 +53,7 @@ CREATE TABLE IF NOT EXISTS sales (
     payment_method ENUM('cash', 'card') DEFAULT 'cash',
     cash_received DECIMAL(10, 2) DEFAULT 0.00,
     balance DECIMAL(10, 2) DEFAULT 0.00,
+    status TINYINT(1) DEFAULT 1, -- 1 for active, 0 for cancelled
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
     FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL

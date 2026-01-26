@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import toast from 'react-hot-toast';
 import { useProducts } from '../context/ProductContext';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
@@ -23,21 +24,86 @@ const Billing = () => {
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [cashReceived, setCashReceived] = useState<number>(0);
     const searchInputRef = useRef<HTMLInputElement>(null);
+    const scannerBuffer = useRef('');
+    const lastKeyTime = useRef(0);
+
+
+    const handleBarcodeSearch = (barcode: string) => {
+        if (!barcode.trim()) return;
+
+        const product = products.find(p => p.barcode === barcode);
+        if (product) {
+            if (product.stock > 0) {
+                addToCart(product);
+                toast.success(`Added ${product.name}`);
+                setSearchTerm('');
+            } else {
+                toast.error(`Item "${product.name}" is out of stock`);
+                setSearchTerm('');
+            }
+        } else {
+            toast.error(`Item with barcode "${barcode}" is missing on the system`);
+            setSearchTerm('');
+        }
+    };
 
     useEffect(() => {
-        const handleGlobalKeyDown = (e: KeyboardEvent) => {
-            // Auto-focus search box if user starts typing while not in an input
-            const isInput = (document.activeElement?.tagName === 'INPUT' ||
-                document.activeElement?.tagName === 'TEXTAREA');
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const now = Date.now();
+            const timeDiff = now - lastKeyTime.current;
+            lastKeyTime.current = now;
 
-            if (searchInputRef.current && !isInput && !e.ctrlKey && !e.altKey && !e.metaKey && e.key.length === 1) {
-                searchInputRef.current.focus();
+            // Ignore modifier keys
+            if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+            if (e.key === 'Enter') {
+                if (scannerBuffer.current.length > 3) {
+                    handleBarcodeSearch(scannerBuffer.current);
+                    scannerBuffer.current = '';
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+                return;
+            }
+
+            if (e.key.length === 1) {
+                // If keys are coming in very fast (< 50ms), it's likely a scanner
+                const isInput = (document.activeElement?.tagName === 'INPUT' ||
+                    document.activeElement?.tagName === 'TEXTAREA');
+
+                if (timeDiff < 50) {
+                    // This is a scanner burst
+                    scannerBuffer.current += e.key;
+                    // If we are in an input that is NOT the search box, stop the chars from appearing there
+                    if (isInput && document.activeElement !== searchInputRef.current) {
+                        e.preventDefault();
+                    }
+                } else {
+                    // Human typing speed
+                    if (!isInput) {
+                        // If not in an input, focus the search box so the character goes there
+                        searchInputRef.current?.focus();
+                    }
+                    scannerBuffer.current = e.key; // Start a new buffer for the first char of a scan
+                }
             }
         };
 
-        window.addEventListener('keydown', handleGlobalKeyDown);
-        return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-    }, []);
+        const handleFocusLost = (e: FocusEvent) => {
+            const target = e.relatedTarget as HTMLElement;
+            if (!target || (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA')) {
+                searchInputRef.current?.focus();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown, true);
+        window.addEventListener('blur', handleFocusLost as any, true);
+
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown, true);
+            window.removeEventListener('blur', handleFocusLost as any, true);
+        };
+    }, [products, addToCart]);
 
     useEffect(() => {
         const searchCustomer = async () => {
@@ -118,7 +184,8 @@ const Billing = () => {
             paymentMethod,
             cashierName: user?.name || 'Cashier',
             cashReceived: paymentMethod === 'cash' ? cashReceived : 0,
-            balance: paymentMethod === 'cash' ? balance : 0
+            balance: paymentMethod === 'cash' ? balance : 0,
+            status: true
         });
 
         if (newInvoice) {
@@ -154,19 +221,7 @@ const Billing = () => {
                         <form
                             onSubmit={(e) => {
                                 e.preventDefault();
-                                const product = products.find(p => p.barcode === searchTerm);
-                                if (product) {
-                                    if (product.stock > 0) {
-                                        addToCart(product);
-                                        setSearchTerm('');
-                                    } else {
-                                        alert('Item is out of stock');
-                                        setSearchTerm('');
-                                    }
-                                } else if (searchTerm.trim()) {
-                                    alert('Item is missing on the system');
-                                    setSearchTerm('');
-                                }
+                                handleBarcodeSearch(searchTerm);
                             }}
                             className="relative"
                         >
@@ -218,7 +273,14 @@ const Billing = () => {
                                     <div className="bg-gray-50 w-12 h-12 rounded-lg mb-3 flex items-center justify-center">
                                         <Shirt className={`w-6 h-6 ${product.stock > 0 ? 'text-gray-400' : 'text-red-300'}`} />
                                     </div>
-                                    <h3 className={`font-semibold truncate w-full mb-1 ${product.stock > 0 ? 'text-gray-800' : 'text-gray-500'}`}>{product.name}</h3>
+                                    <h3 className={`font-semibold truncate w-full mb-1 ${product.stock > 0 ? 'text-gray-800' : 'text-gray-500'}`}>
+                                        {product.name}
+                                        {product.size && (
+                                            <span className="ml-1 text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 uppercase tracking-tighter">
+                                                {product.size}
+                                            </span>
+                                        )}
+                                    </h3>
                                     <p className="text-xs text-gray-500 mb-2 truncate">{product.barcode}</p>
                                     <div className="mt-auto flex justify-between items-center w-full">
                                         <span className={`font-bold ${product.stock > 0 ? 'text-blue-600' : 'text-gray-400'}`}>Rs. {product.price.toFixed(2)}</span>
@@ -287,7 +349,12 @@ const Billing = () => {
                         {cart.map(item => (
                             <div key={item.id} className="flex gap-4 p-3 bg-gray-50 rounded-xl group hover:bg-blue-50/50 transition-colors">
                                 <div className="flex-1">
-                                    <h4 className="font-medium text-gray-800">{item.name}</h4>
+                                    <h4 className="font-medium text-gray-800">
+                                        {item.name}
+                                        {item.size && (
+                                            <span className="ml-1 text-[10px] font-bold text-blue-600">({item.size})</span>
+                                        )}
+                                    </h4>
                                     <p className="text-sm text-gray-500">Rs. {item.price.toFixed(2)} each</p>
                                 </div>
                                 <div className="flex flex-col items-end gap-2">
@@ -403,17 +470,22 @@ const Billing = () => {
                                 </div>
                                 <div className="flex justify-between items-center">
                                     <span className="text-gray-600">Balance</span>
-                                    <span className={`font-bold ${balance < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                    <span className={`font-bold ${balance < 0 ? 'text-red-600 animate-pulse' : 'text-green-600'}`}>
                                         Rs. {balance.toFixed(2)}
                                     </span>
                                 </div>
+                                {balance < 0 && (
+                                    <p className="text-[10px] text-red-500 font-bold bg-red-50 p-2 rounded-lg border border-red-100 mt-2">
+                                        ⚠️ INSUFFICIENT CASH: Cash received must be at least Rs. {finalTotal.toFixed(2)}
+                                    </p>
+                                )}
                             </div>
                         )}
 
                         <button
                             onClick={() => handleCheckout()}
-                            disabled={cart.length === 0}
-                            className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg shadow-lg shadow-blue-500/30 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                            disabled={cart.length === 0 || (paymentMethod === 'cash' && cashReceived < finalTotal)}
+                            className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg shadow-lg shadow-blue-500/30 hover:bg-blue-700 disabled:bg-gray-400 disabled:shadow-none disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
                         >
                             <Printer className="w-5 h-5" />
                             Checkout & Print

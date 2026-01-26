@@ -5,7 +5,7 @@ import { Edit2, Trash2, Package } from 'lucide-react';
 interface ProductListProps {
     products: Product[];
     onEdit: (product: Product) => void;
-    onDelete: (id: string) => void;
+    onDelete: (product: Product) => void;
 }
 
 const ProductList: React.FC<ProductListProps> = ({ products, onEdit, onDelete }) => {
@@ -72,7 +72,7 @@ const ProductList: React.FC<ProductListProps> = ({ products, onEdit, onDelete })
                                             <Edit2 className="w-4 h-4" />
                                         </button>
                                         <button
-                                            onClick={() => onDelete(product.id)}
+                                            onClick={() => onDelete(product)}
                                             className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                             title="Delete Product"
                                         >
