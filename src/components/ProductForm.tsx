@@ -157,7 +157,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData, onSubmit, onCanc
                                 type="number"
                                 min="0"
                                 step="0.01"
-                                value={formData.price}
+                                value={formData.price || ''}
                                 onChange={e => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
                                 className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                             />
