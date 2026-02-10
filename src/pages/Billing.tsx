@@ -23,7 +23,14 @@ const Billing = () => {
     const [customerSuggestions, setCustomerSuggestions] = useState<any[]>([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [cashReceived, setCashReceived] = useState<number>(0);
+    const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
+    const [wasSelected, setWasSelected] = useState(false);
     const searchInputRef = useRef<HTMLInputElement>(null);
+    const customerNameRef = useRef<HTMLInputElement>(null);
+    const customerMobileRef = useRef<HTMLInputElement>(null);
+    const discountRef = useRef<HTMLInputElement>(null);
+    const cashReceivedRef = useRef<HTMLInputElement>(null);
+    const checkoutButtonRef = useRef<HTMLButtonElement>(null);
     const scannerBuffer = useRef('');
     const lastKeyTime = useRef(0);
 
@@ -107,10 +114,15 @@ const Billing = () => {
 
     useEffect(() => {
         const searchCustomer = async () => {
+            if (wasSelected) {
+                setWasSelected(false);
+                return;
+            }
             const query = customerName || customerMobile;
             if (query.length < 2) {
                 setCustomerSuggestions([]);
                 setShowSuggestions(false);
+                setActiveSuggestionIndex(-1);
                 return;
             }
 
@@ -128,10 +140,13 @@ const Billing = () => {
     }, [customerName, customerMobile]);
 
     const selectCustomer = (customer: any) => {
+        setWasSelected(true);
         setCustomerName(customer.name || '');
         setCustomerMobile(customer.phone || '');
         setCustomerSuggestions([]);
         setShowSuggestions(false);
+        setActiveSuggestionIndex(-1);
+        setTimeout(() => customerMobileRef.current?.focus(), 10);
     };
 
     const { addInvoice } = useInvoices();
@@ -171,7 +186,15 @@ const Billing = () => {
     });
 
     const handleCheckout = async () => {
-        if (cart.length === 0) return;
+        if (cart.length === 0) {
+            toast.error('Cart is empty');
+            return;
+        }
+
+        if (paymentMethod === 'cash' && cashReceived < finalTotal) {
+            toast.error(`Insufficient cash. Required: Rs. ${finalTotal.toFixed(2)}`);
+            return;
+        }
 
         const newInvoice = await addInvoice({
             invoiceNo: '', // Backend generates this
@@ -189,12 +212,14 @@ const Billing = () => {
         });
 
         if (newInvoice) {
-            await fetchProducts(); // Refresh stock levels after successful sale
+            // Don't await this - let it run in background to speed up printing
+            fetchProducts();
+
             setPrintingInvoice(newInvoice);
-            // Allow render cycle to complete for hidden receipt
+            // Reduced delay as 100ms is often perceptible
             setTimeout(() => {
                 handlePrint();
-            }, 100);
+            }, 50);
         }
     };
 
@@ -311,30 +336,62 @@ const Billing = () => {
                         </h2>
                         <div className="flex gap-3 relative">
                             <input
+                                ref={customerNameRef}
                                 type="text"
                                 placeholder="Customer Name"
                                 value={customerName}
                                 onChange={(e) => {
                                     setCustomerName(e.target.value);
-                                    if (e.target.value === '') setCustomerMobile(''); // Logic to clear both if name cleared?
+                                    if (e.target.value === '') setCustomerMobile('');
+                                }}
+                                onKeyDown={(e) => {
+                                    if (showSuggestions && customerSuggestions.length > 0) {
+                                        if (e.key === 'ArrowDown') {
+                                            e.preventDefault();
+                                            setActiveSuggestionIndex(prev =>
+                                                prev < customerSuggestions.length - 1 ? prev + 1 : prev
+                                            );
+                                        } else if (e.key === 'ArrowUp') {
+                                            e.preventDefault();
+                                            setActiveSuggestionIndex(prev => (prev > 0 ? prev - 1 : 0));
+                                        } else if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            if (activeSuggestionIndex >= 0) {
+                                                selectCustomer(customerSuggestions[activeSuggestionIndex]);
+                                            } else {
+                                                customerMobileRef.current?.focus();
+                                            }
+                                        }
+                                    } else if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        customerMobileRef.current?.focus();
+                                    }
                                 }}
                                 className="w-0 flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                             />
                             <input
+                                ref={customerMobileRef}
                                 type="text"
                                 placeholder="Mobile"
                                 value={customerMobile}
                                 onChange={(e) => setCustomerMobile(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        discountRef.current?.focus();
+                                    }
+                                }}
                                 className="w-0 flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                             />
 
                             {showSuggestions && (
                                 <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
-                                    {customerSuggestions.map((cust) => (
+                                    {customerSuggestions.map((cust, index) => (
                                         <button
                                             key={cust.id}
                                             onClick={() => selectCustomer(cust)}
-                                            className="w-full px-4 py-2 text-left hover:bg-blue-50 flex flex-col transition-colors border-b border-gray-50 last:border-b-0"
+                                            className={`w-full px-4 py-2 text-left flex flex-col transition-colors border-b border-gray-50 last:border-b-0 ${activeSuggestionIndex === index ? 'bg-blue-100' : 'hover:bg-blue-50'
+                                                }`}
                                         >
                                             <span className="font-semibold text-gray-800">{cust.name || 'No Name'}</span>
                                             <span className="text-xs text-gray-500">{cust.phone || 'No Phone'}</span>
@@ -395,13 +452,24 @@ const Billing = () => {
                                 <span>Discount %</span>
                                 <div className="flex items-center gap-2">
                                     <input
+                                        ref={discountRef}
                                         type="number"
                                         min="0"
                                         max="100"
-                                        value={discountPercentage}
+                                        value={discountPercentage || ''}
                                         onChange={(e) => {
                                             const val = parseFloat(e.target.value) || 0;
                                             setDiscountPercentage(Math.min(100, Math.max(0, val)));
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                if (paymentMethod === 'cash') {
+                                                    cashReceivedRef.current?.focus();
+                                                } else {
+                                                    checkoutButtonRef.current?.focus();
+                                                }
+                                            }
                                         }}
                                         className="w-16 px-2 py-1 text-right border border-gray-200 rounded focus:ring-2 focus:ring-blue-500/20 focus:outline-none"
                                     />
@@ -456,12 +524,19 @@ const Billing = () => {
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400">Rs.</span>
                                         <input
+                                            ref={cashReceivedRef}
                                             type="number"
                                             min="0"
                                             value={cashReceived || ''}
                                             onChange={(e) => {
                                                 const val = parseFloat(e.target.value) || 0;
                                                 setCashReceived(val);
+                                            }}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    checkoutButtonRef.current?.focus();
+                                                }
                                             }}
                                             className="w-24 px-2 py-1 text-right border border-gray-200 rounded focus:ring-2 focus:ring-blue-500/20 focus:outline-none"
                                             placeholder="0.00"
@@ -483,9 +558,9 @@ const Billing = () => {
                         )}
 
                         <button
+                            ref={checkoutButtonRef}
                             onClick={() => handleCheckout()}
-                            disabled={cart.length === 0 || (paymentMethod === 'cash' && cashReceived < finalTotal)}
-                            className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg shadow-lg shadow-blue-500/30 hover:bg-blue-700 disabled:bg-gray-400 disabled:shadow-none disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                            className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
                         >
                             <Printer className="w-5 h-5" />
                             Checkout & Print
