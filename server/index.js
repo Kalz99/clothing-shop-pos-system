@@ -23,6 +23,7 @@ app.use('/api/products', require('./routes/products'));
 app.use('/api/categories', require('./routes/categories'));
 app.use('/api/sales', require('./routes/sales'));
 app.use('/api/customers', require('./routes/customers'));
+app.use('/api/returns', require('./routes/returns'));
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

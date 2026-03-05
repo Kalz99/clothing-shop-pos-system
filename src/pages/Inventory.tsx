@@ -16,6 +16,14 @@ const ManagerDashboard = () => {
     const [searchTerm, setSearchTerm] = useState('');
 
     const handleAdd = async (data: Omit<Product, 'id'>) => {
+        const duplicate = products.find(
+            (p) => p.barcode.trim() === data.barcode.trim()
+        );
+        if (duplicate) {
+            toast.error(`Barcode "${data.barcode}" is already assigned to "${duplicate.name}". Please use a unique barcode.`);
+            return;
+        }
+
         try {
             await addProduct(data);
             toast.success(`Product "${data.name}" added successfully`);

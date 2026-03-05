@@ -41,6 +41,12 @@ const Billing = () => {
         const product = products.find(p => p.barcode === barcode);
         if (product) {
             if (product.stock > 0) {
+                const existing = cart.find(i => i.id === product.id);
+                if (existing && existing.quantity >= product.stock) {
+                    toast.error(`Cannot increase quantity. Only ${product.stock} ${product.stock === 1 ? 'item' : 'items'} available in stock.`);
+                    setSearchTerm('');
+                    return;
+                }
                 addToCart(product);
                 toast.success(`Added ${product.name}`);
                 setSearchTerm('');
@@ -282,7 +288,16 @@ const Billing = () => {
                             {filteredProducts.map(product => (
                                 <button
                                     key={product.id}
-                                    onClick={() => product.stock > 0 && addToCart(product)}
+                                    onClick={() => {
+                                        if (product.stock > 0) {
+                                            const existing = cart.find(i => i.id === product.id);
+                                            if (existing && existing.quantity >= product.stock) {
+                                                toast.error(`Cannot increase quantity. Only ${product.stock} ${product.stock === 1 ? 'item' : 'items'} available in stock.`);
+                                            } else {
+                                                addToCart(product);
+                                            }
+                                        }
+                                    }}
                                     disabled={product.stock <= 0}
                                     className={`bg-white p-4 rounded-xl shadow-sm transition-all text-left flex flex-col group border border-transparent relative overflow-hidden ${product.stock > 0
                                         ? 'hover:shadow-md hover:border-blue-500'
@@ -424,7 +439,13 @@ const Billing = () => {
                                         </button>
                                         <span className="text-sm font-semibold w-6 text-center">{item.quantity}</span>
                                         <button
-                                            onClick={() => addToCart(item)}
+                                            onClick={() => {
+                                                if (item.quantity >= item.stock) {
+                                                    toast.error(`Cannot increase quantity. Only ${item.stock} ${item.stock === 1 ? 'item' : 'items'} available in stock.`);
+                                                } else {
+                                                    addToCart(item);
+                                                }
+                                            }}
                                             className="w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100 text-gray-600"
                                         >
                                             <Plus className="w-3 h-3" />

@@ -5,6 +5,7 @@ import { ProductProvider } from './context/ProductContext';
 import { CartProvider } from './context/CartContext';
 import { CategoryProvider } from './context/CategoryContext';
 import { InvoiceProvider } from './context/InvoiceContext';
+import { ReturnProvider } from './context/ReturnContext';
 import Layout from './components/Layout';
 
 // Pages
@@ -14,13 +15,14 @@ import Inventory from './pages/Inventory';
 import Sales from './pages/Sales';
 import Categories from './pages/Categories';
 import Invoices from './pages/Invoices';
+import Customers from './pages/Customers';
+import Returns from './pages/Returns';
 
 const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles?: string[] }) => {
   const { user, isAuthenticated } = useAuth();
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
 
-  // If roles are specified and user role doesn't match
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {
     return <Navigate to="/" replace />;
   }
@@ -36,38 +38,46 @@ function App() {
           <CartProvider>
             <CategoryProvider>
               <InvoiceProvider>
-                <Routes>
-                  <Route path="/login" element={<Login />} />
+                <ReturnProvider>
+                  <Routes>
+                    <Route path="/login" element={<Login />} />
 
-                  {/* Main Layout Routes */}
-                  <Route path="/" element={
-                    <ProtectedRoute>
-                      <Layout />
-                    </ProtectedRoute>
-                  }>
-                    {/* Billing (Common Dashboard) */}
-                    <Route index element={<Billing />} />
-                    <Route path="invoices" element={<Invoices />} />
+                    {/* Main Layout Routes */}
+                    <Route path="/" element={
+                      <ProtectedRoute>
+                        <Layout />
+                      </ProtectedRoute>
+                    }>
+                      {/* Common Routes */}
+                      <Route index element={<Billing />} />
+                      <Route path="invoices" element={<Invoices />} />
+                      <Route path="returns" element={<Returns />} />
 
-                    {/* Manager Only Routes */}
-                    <Route path="sales" element={
-                      <ProtectedRoute allowedRoles={['manager']}>
-                        <Sales />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="inventory" element={
-                      <ProtectedRoute allowedRoles={['manager']}>
-                        <Inventory />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="categories" element={
-                      <ProtectedRoute allowedRoles={['manager']}>
-                        <Categories />
-                      </ProtectedRoute>
-                    } />
-                  </Route>
+                      {/* Manager Only Routes */}
+                      <Route path="sales" element={
+                        <ProtectedRoute allowedRoles={['manager']}>
+                          <Sales />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="inventory" element={
+                        <ProtectedRoute allowedRoles={['manager']}>
+                          <Inventory />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="categories" element={
+                        <ProtectedRoute allowedRoles={['manager']}>
+                          <Categories />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="customers" element={
+                        <ProtectedRoute allowedRoles={['manager']}>
+                          <Customers />
+                        </ProtectedRoute>
+                      } />
+                    </Route>
 
-                </Routes>
+                  </Routes>
+                </ReturnProvider>
               </InvoiceProvider>
             </CategoryProvider>
           </CartProvider>

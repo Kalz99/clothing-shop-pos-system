@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, ShoppingBag, PlusCircle, LogOut, Menu, Tag, FileText } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, PlusCircle, LogOut, Menu, Tag, FileText, Users, RotateCcw } from 'lucide-react';
 import logo from '../assets/logo_n.png';
 
 const Layout = () => {
@@ -74,6 +74,17 @@ const Layout = () => {
                                 <span className="font-medium">Invoices</span>
                             </Link>
 
+                            <Link
+                                to="/returns"
+                                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all group ${isActive('/returns')
+                                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
+                                    : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                                    }`}
+                            >
+                                <RotateCcw className={`w-5 h-5 ${isActive('/returns') ? 'text-white' : 'text-gray-400 group-hover:text-white'}`} />
+                                <span className="font-medium">Returns</span>
+                            </Link>
+
                             {user?.role === 'manager' && (
                                 <>
                                     <Link
@@ -105,6 +116,16 @@ const Layout = () => {
                                     >
                                         <Tag className={`w-5 h-5 ${isActive('/categories') ? 'text-white' : 'text-gray-400 group-hover:text-white'}`} />
                                         <span className="font-medium">Categories</span>
+                                    </Link>
+                                    <Link
+                                        to="/customers"
+                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all group ${isActive('/customers')
+                                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
+                                            : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                                            }`}
+                                    >
+                                        <Users className={`w-5 h-5 ${isActive('/customers') ? 'text-white' : 'text-gray-400 group-hover:text-white'}`} />
+                                        <span className="font-medium">Customers</span>
                                     </Link>
                                 </>
                             )}

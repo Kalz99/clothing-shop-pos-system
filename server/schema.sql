@@ -76,3 +76,29 @@ CREATE TABLE IF NOT EXISTS sale_items (
 INSERT INTO users (username, password, role) VALUES ('admin', 'admin@2026', 'manager');
 INSERT INTO users (username, password, role) VALUES ('cashier', 'cashier@2026', 'cashier');
 
+-- 7. Returns Table
+-- Stores each return transaction linked to the original sale
+CREATE TABLE IF NOT EXISTS returns (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    return_no VARCHAR(50) NOT NULL UNIQUE,       -- e.g. RET000001, RET000002
+    sale_id INT NOT NULL,                        -- reference to original invoice
+    user_id INT,                                 -- cashier who processed the return
+    total_refund DECIMAL(10, 2) NOT NULL,        -- total value refunded
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (sale_id) REFERENCES sales(id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- 8. Return Items Table
+-- Stores individual items within each return
+CREATE TABLE IF NOT EXISTS return_items (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    return_id INT NOT NULL,
+    product_id INT,                              -- nullable in case product was deleted
+    product_name VARCHAR(255) NOT NULL,          -- snapshot of name at time of return
+    unit_price DECIMAL(10, 2) NOT NULL,          -- snapshot of price at time of return
+    qty INT NOT NULL,
+    line_total DECIMAL(10, 2) NOT NULL,
+    FOREIGN KEY (return_id) REFERENCES returns(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
+);

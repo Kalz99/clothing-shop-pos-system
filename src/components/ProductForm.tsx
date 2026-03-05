@@ -17,10 +17,10 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData, onSubmit, onCanc
     const [formData, setFormData] = useState({
         name: initialData?.name || '',
         barcode: initialData?.barcode || '',
-        price: initialData?.price || 0,
-        costPrice: initialData?.costPrice || 0,
+        price: initialData?.price !== undefined ? initialData.price.toString() : '',
+        costPrice: initialData?.costPrice !== undefined ? initialData.costPrice.toString() : '',
         category: initialData?.category || '',
-        stock: initialData?.stock || 0,
+        stock: initialData?.stock ?? '',
         brand: initialData?.brand || '',
         size: initialData?.size || '',
         color: initialData?.color || '',
@@ -78,8 +78,12 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData, onSubmit, onCanc
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        const { price, costPrice, stock, ...rest } = formData;
         onSubmit({
-            ...formData,
+            ...rest,
+            price: Number(price) || 0,
+            costPrice: Number(costPrice) || 0,
+            stock: Number(stock) || 0,
             createdAt: initialData?.createdAt || new Date().toISOString()
         });
     };
@@ -116,10 +120,13 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData, onSubmit, onCanc
                                 ref={barcodeRef}
                                 type="text"
                                 required
+                                minLength={8}
+                                maxLength={8}
                                 value={formData.barcode}
                                 onChange={e => setFormData({ ...formData, barcode: e.target.value })}
                                 onKeyDown={handleBarcodeKeyDown}
-                                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none pr-10 font-mono"
+                                readOnly={!!initialData}
+                                className={`w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none pr-10 font-mono ${!!initialData ? 'bg-gray-100 cursor-not-allowed text-gray-500' : ''}`}
                                 placeholder="Scan or type barcode"
                             />
                             <Scan className="w-5 h-5 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2" />
@@ -146,8 +153,8 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData, onSubmit, onCanc
                                 min="0"
                                 step="0.01"
                                 required
-                                value={formData.costPrice || ''}
-                                onChange={e => setFormData({ ...formData, costPrice: parseFloat(e.target.value) || 0 })}
+                                value={formData.costPrice}
+                                onChange={e => setFormData({ ...formData, costPrice: e.target.value })}
                                 className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                             />
                         </div>
@@ -157,8 +164,8 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData, onSubmit, onCanc
                                 type="number"
                                 min="0"
                                 step="0.01"
-                                value={formData.price || ''}
-                                onChange={e => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
+                                value={formData.price}
+                                onChange={e => setFormData({ ...formData, price: e.target.value })}
                                 className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                             />
                         </div>
@@ -171,8 +178,8 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData, onSubmit, onCanc
                                 type="number"
                                 min="0"
                                 required
-                                value={formData.stock || ''}
-                                onChange={e => setFormData({ ...formData, stock: parseInt(e.target.value) || 0 })}
+                                value={formData.stock ?? ''}
+                                onChange={e => setFormData({ ...formData, stock: e.target.value })}
                                 className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                             />
                         </div>
